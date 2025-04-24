@@ -59,8 +59,10 @@ int main() {
     print_vector(v3);
 
     VectorTheSerene<ConstructReporter> v4;
-    v4.push_back(ConstructReporter("1"));
-    v4.push_back(ConstructReporter("2"));
+
+    for (int i = 0; i < 50; ++i) {
+        v4.push_back(ConstructReporter(std::to_string(i)));
+    }
 
     return 0;
 }

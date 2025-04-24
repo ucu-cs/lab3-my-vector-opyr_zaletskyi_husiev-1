@@ -10,24 +10,22 @@
 template <typename T> class VectorTheSerene {
   private:
     size_t size_;
-    size_t capacity;
+    size_t capacity_;
     T *data;
 
     void auto_resize(size_t new_size) {
-        size_t new_capacity = capacity;
+        size_t new_capacity = capacity_;
         while (new_size > new_capacity) {
             new_capacity *= 2;
         }
-        while (new_size < new_capacity * 2 && new_capacity > 16) {
-            new_capacity /= 2;
-        }
+        // And we never auto-shrink
 
         unsafe_resize(new_capacity);
     }
 
     void unsafe_resize(size_t new_capacity) {
         assert(new_capacity >= size_);
-        if (new_capacity == capacity) {
+        if (new_capacity == capacity_) {
             return;
         }
 
@@ -41,7 +39,7 @@ template <typename T> class VectorTheSerene {
         ::operator delete(data);
 
         data = new_data;
-        capacity = new_capacity;
+        capacity_ = new_capacity;
     }
 
   public:
@@ -53,19 +51,19 @@ template <typename T> class VectorTheSerene {
 
     void swap(VectorTheSerene &other) {
         std::swap(size_, other.size_);
-        std::swap(capacity, other.capacity);
+        std::swap(capacity_, other.capacity_);
         std::swap(data, other.data);
     }
 
     VectorTheSerene() {
         size_ = 0;
-        capacity = 16;
-        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
+        capacity_ = 16;
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity_));
     }
     VectorTheSerene(const VectorTheSerene &other) {
         size_ = other.size_;
-        capacity = other.capacity;
-        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
+        capacity_ = other.capacity_;
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity_));
         for (size_t i = 0; i < size_; ++i) {
             // Can't just assign as this is the raw data
             new (&data[i]) T(other.data[i]);
@@ -81,11 +79,11 @@ template <typename T> class VectorTheSerene {
     VectorTheSerene(const T &value, size_t n) {
         size_ = n;
         if (n <= 8) {
-            capacity = 16;
+            capacity_ = 16;
         } else {
-            capacity = n;
+            capacity_ = n;
         }
-        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity_));
         for (size_t i = 0; i < size_; ++i) {
             new (&data[i]) T(value);
         }
@@ -93,11 +91,11 @@ template <typename T> class VectorTheSerene {
     template <typename Iterator> VectorTheSerene(Iterator begin, Iterator end) {
         size_ = std::distance(begin, end);
         if (size_ <= 8) {
-            capacity = 16;
+            capacity_ = 16;
         } else {
-            capacity = size_;
+            capacity_ = size_;
         }
-        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity_));
         for (size_t i = 0; i < size_; ++i) {
             new (&data[i]) T(*(begin + i));
         }
@@ -105,11 +103,11 @@ template <typename T> class VectorTheSerene {
     VectorTheSerene(std::initializer_list<T> list) {
         size_ = list.size();
         if (size_ <= 8) {
-            capacity = 16;
+            capacity_ = 16;
         } else {
-            capacity = size_;
+            capacity_ = size_;
         }
-        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity_));
         size_t i = 0;
         for (const auto &item : list) {
             new (&data[i++]) T(item);
@@ -154,8 +152,14 @@ template <typename T> class VectorTheSerene {
         if (size_ > 0) {
             size_--;
             data[size_].~T();
-            auto_resize(size_);
         }
+    }
+
+    template <typename... Args> T &emplace_back(Args &&...args) {
+        auto_resize(size_ + 1);
+        new (&data[size_]) T(std::forward<Args>(args)...);
+        size_++;
+        return data[size_ - 1];
     }
 
     T &back() {
@@ -214,6 +218,7 @@ template <typename T> class VectorTheSerene {
     }
 
     size_t size() const { return size_; }
+    size_t capacity() const { return capacity_; }
 
     bool is_empty() const { return size_ == 0; }
     void clear() {
@@ -222,6 +227,128 @@ template <typename T> class VectorTheSerene {
         }
         size_ = 0;
         auto_resize(0);
+    }
+
+    void reserve(size_t new_capacity) {
+        if (new_capacity > capacity_) {
+            unsafe_resize(new_capacity);
+        }
+    }
+    void shrink_to_fit() {
+        if (size_ < capacity_) {
+            unsafe_resize(size_);
+        }
+    }
+
+    void resize(size_t new_size) {
+        // Remove all the items >=new_size
+        for (size_t i = new_size; i < size_; ++i) {
+            data[i].~T();
+        }
+        auto_resize(new_size);
+        // Add new items
+        for (size_t i = size_; i < new_size; ++i) {
+            new (&data[i]) T();
+        }
+        size_ = new_size;
+    }
+    void resize(size_t new_size, const T &value) {
+        // Remove all the items >=new_size
+        for (size_t i = new_size; i < size_; ++i) {
+            data[i].~T();
+        }
+        auto_resize(new_size);
+        // Add new items
+        for (size_t i = size_; i < new_size; ++i) {
+            new (&data[i]) T(value);
+        }
+        size_ = new_size;
+    }
+
+    auto insert(size_t index, const T &value) {
+        if (index > size_) {
+            throw std::out_of_range("index out of range");
+        }
+        auto_resize(size_ + 1);
+        for (size_t i = size_ - 1; i > index; --i) {
+            new (&data[i]) T(std::move(data[i - 1]));
+            data[i - 1].~T();
+        }
+        new (&data[index]) T(value);
+        size_++;
+        return data + index;
+    }
+
+    auto insert(size_t index, T &&value) {
+        if (index > size_) {
+            throw std::out_of_range("index out of range");
+        }
+        auto_resize(size_ + 1);
+        for (size_t i = size_ - 1; i > index; --i) {
+            new (&data[i]) T(std::move(data[i - 1]));
+            data[i - 1].~T();
+        }
+        new (&data[index]) T(std::move(value));
+        size_++;
+        return data + index;
+    }
+
+    template <typename Iterator>
+    auto insert(size_t index, Iterator begin, Iterator end) {
+        if (index > size_) {
+            throw std::out_of_range("index out of range");
+        }
+        size_t count = std::distance(begin, end);
+        auto_resize(size_ + count);
+        for (size_t i = size_ - 1; i > index; --i) {
+            new (&data[i]) T(std::move(data[i - count]));
+            data[i - count].~T();
+        }
+        for (size_t i = 0; i < count; ++i) {
+            new (&data[index + i]) T(*(begin + i));
+        }
+        size_ += count;
+        return data + index;
+    }
+
+    auto erase(size_t index) {
+        if (index >= size_) {
+            throw std::out_of_range("index out of range");
+        }
+        data[index].~T();
+        for (size_t i = index + 1; i < size_; ++i) {
+            new (&data[i - 1]) T(std::move(data[i]));
+            data[i].~T();
+        }
+        size_--;
+        return data + index;
+    }
+
+    auto erase(size_t begin, size_t end) {
+        if (begin >= size_ || end > size_ || begin >= end) {
+            throw std::out_of_range("index out of range");
+        }
+        for (size_t i = begin; i < end; ++i) {
+            data[i].~T();
+        }
+        for (size_t i = end; i < size_; ++i) {
+            new (&data[i - (end - begin)]) T(std::move(data[i]));
+            data[i].~T();
+        }
+        size_ -= (end - begin);
+        return data + begin;
+    }
+
+    auto operator<=>(const VectorTheSerene &other) const {
+        size_t min_size = std::min(size_, other.size_);
+        for (size_t i = 0; i < min_size; ++i) {
+            if (data[i] < other.data[i]) {
+                return std::strong_ordering::less;
+            } else if (data[i] > other.data[i]) {
+                return std::strong_ordering::greater;
+            }
+        }
+        return size_ <=> other.size_;
     }
 };
 
