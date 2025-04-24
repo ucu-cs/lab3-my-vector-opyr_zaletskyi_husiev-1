@@ -3,23 +3,38 @@
 
 // To check for extra operations
 class ConstructReporter {
+  private:
+    std::string id;
+
   public:
-    ConstructReporter() { std::cout << "Constructed\n"; }
-    ConstructReporter(const ConstructReporter &) {
-        std::cout << "Copy constructed\n";
+    ConstructReporter() {
+        id = "default";
+        std::cout << "Default constructed" << std::endl;
     }
-    ConstructReporter(ConstructReporter &&) noexcept {
-        std::cout << "Move constructed\n";
+    ConstructReporter(std::string id) : id(id) {
+        std::cout << "Constructed " << id << std::endl;
     }
-    ConstructReporter &operator=(const ConstructReporter &) {
-        std::cout << "Copy assigned\n";
+    ConstructReporter(const ConstructReporter &other) {
+        std::cout << "Copy constructed from " << other.id << std::endl;
+        id = "Copy of " + other.id;
+    }
+    ConstructReporter(ConstructReporter &&other) noexcept {
+        std::cout << "Move constructed from " << other.id << std::endl;
+        id = "Move of " + other.id;
+    }
+    ConstructReporter &operator=(const ConstructReporter &other) {
+        std::cout << "Copy assigned " << other.id << " into what was " << id
+                  << std::endl;
+        id = "Copy of " + other.id;
         return *this;
     }
-    ConstructReporter &operator=(ConstructReporter &&) noexcept {
-        std::cout << "Move assigned\n";
+    ConstructReporter &operator=(ConstructReporter &&other) noexcept {
+        std::cout << "Move assigned " << other.id << " into what was " << id
+                  << std::endl;
+        id = "Move of " + other.id;
         return *this;
     }
-    ~ConstructReporter() { std::cout << "Destructed\n"; }
+    ~ConstructReporter() { std::cout << "Destructed " << id << std::endl; }
 };
 
 int main() {
@@ -44,8 +59,8 @@ int main() {
     print_vector(v3);
 
     VectorTheSerene<ConstructReporter> v4;
-    v4.push_back(ConstructReporter());
-    v4.push_back(ConstructReporter());
+    v4.push_back(ConstructReporter("1"));
+    v4.push_back(ConstructReporter("2"));
 
     return 0;
 }

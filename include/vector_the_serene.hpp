@@ -1,6 +1,7 @@
 #ifndef INCLUDE_VECTOR_THE_SERENE_HPP_
 #define INCLUDE_VECTOR_THE_SERENE_HPP_
 
+#include <cassert>
 #include <cstddef>
 #include <iostream>
 #include <new>
@@ -12,45 +13,35 @@ template <typename T> class VectorTheSerene {
     size_t capacity;
     T *data;
 
-    bool allocate_more() {
-        if (size_ < 8) {
-            if (capacity == 16) {
-                return false;
-            }
-            capacity = 16;
-        } else if (size_ >= capacity) {
-            capacity = 2 * capacity;
-        } else {
-            return false;
+    void auto_resize(size_t new_size) {
+        size_t new_capacity = capacity;
+        while (new_size > new_capacity) {
+            new_capacity *= 2;
         }
-        allocate();
-        return true;
+        while (new_size < new_capacity * 2 && new_capacity > 16) {
+            new_capacity /= 2;
+        }
+
+        unsafe_resize(new_capacity);
     }
 
-    bool allocate_less() {
-        if (size_ <= 8) {
-            if (capacity == 16) {
-                return false;
-            }
-            capacity = 16;
-        } else if (size_ <= capacity / 4) {
-            capacity = capacity / 2;
-        } else {
-            return false;
+    void unsafe_resize(size_t new_capacity) {
+        assert(new_capacity >= size_);
+        if (new_capacity == capacity) {
+            return;
         }
-        allocate();
-        return true;
-    }
 
-    void allocate() {
-        // TODO no extra realloc
-        T *new_data = static_cast<T *>(::operator new(sizeof(T) * capacity));
+        T *new_data =
+            static_cast<T *>(::operator new(sizeof(T) * new_capacity));
+        // Use the *true* size here
         for (size_t i = 0; i < size_; ++i) {
-            new_data[i] = data[i];
+            new (&new_data[i]) T(data[i]);
             data[i].~T();
         }
         ::operator delete(data);
+
         data = new_data;
+        capacity = new_capacity;
     }
 
   public:
@@ -68,7 +59,7 @@ template <typename T> class VectorTheSerene {
 
     VectorTheSerene() {
         size_ = 0;
-        capacity = 8;
+        capacity = 16;
         data = static_cast<T *>(::operator new(sizeof(T) * capacity));
     }
     VectorTheSerene(const VectorTheSerene &other) {
@@ -149,12 +140,12 @@ template <typename T> class VectorTheSerene {
     }
 
     void push_back(const T &value) {
-        allocate_more();
+        auto_resize(size_ + 1);
         new (&data[size_]) T(value);
         size_++;
     }
     void push_back(T &&value) {
-        allocate_more();
+        auto_resize(size_ + 1);
         new (&data[size_]) T(std::move(value));
         size_++;
     }
@@ -163,7 +154,7 @@ template <typename T> class VectorTheSerene {
         if (size_ > 0) {
             size_--;
             data[size_].~T();
-            allocate_less();
+            auto_resize(size_);
         }
     }
 
@@ -230,7 +221,7 @@ template <typename T> class VectorTheSerene {
             data[i].~T();
         }
         size_ = 0;
-        allocate_less();
+        auto_resize(0);
     }
 };
 
