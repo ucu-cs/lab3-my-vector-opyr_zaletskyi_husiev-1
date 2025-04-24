@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <iostream>
+#include <new>
 #include <utility>
 
 template <typename T> class VectorTheSerene {
@@ -10,13 +11,14 @@ template <typename T> class VectorTheSerene {
     size_t size_;
     size_t capacity;
     T *data;
+
     bool allocate_more() {
-        if (size_ <= 8) {
+        if (size_ < 8) {
             if (capacity == 16) {
                 return false;
             }
             capacity = 16;
-        } else if (size_ >= capacity / 2) {
+        } else if (size_ >= capacity) {
             capacity = 2 * capacity;
         } else {
             return false;
@@ -24,6 +26,7 @@ template <typename T> class VectorTheSerene {
         allocate();
         return true;
     }
+
     bool allocate_less() {
         if (size_ <= 8) {
             if (capacity == 16) {
@@ -38,22 +41,25 @@ template <typename T> class VectorTheSerene {
         allocate();
         return true;
     }
+
     void allocate() {
-        T *new_data = new T[capacity];
+        // TODO no extra realloc
+        T *new_data = static_cast<T *>(::operator new(sizeof(T) * capacity));
         for (size_t i = 0; i < size_; ++i) {
             new_data[i] = data[i];
+            data[i].~T();
         }
-        delete[] data;
+        ::operator delete(data);
         data = new_data;
     }
 
   public:
-using value_type = T;
-    using iterator = T*;
-    using const_iterator = const T*;
-    using reverse_iterator = std::reverse_iterator<T*>;
-    using const_reverse_iterator = std::reverse_iterator<const T*>;
-    
+    using value_type = T;
+    using iterator = T *;
+    using const_iterator = const T *;
+    using reverse_iterator = std::reverse_iterator<T *>;
+    using const_reverse_iterator = std::reverse_iterator<const T *>;
+
     void swap(VectorTheSerene &other) {
         std::swap(size_, other.size_);
         std::swap(capacity, other.capacity);
@@ -63,14 +69,15 @@ using value_type = T;
     VectorTheSerene() {
         size_ = 0;
         capacity = 8;
-        data = new T[capacity];
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
     }
     VectorTheSerene(const VectorTheSerene &other) {
         size_ = other.size_;
         capacity = other.capacity;
-        data = new T[capacity];
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
         for (size_t i = 0; i < size_; ++i) {
-            data[i] = other.data[i];
+            // Can't just assign as this is the raw data
+            new (&data[i]) T(other.data[i]);
         }
     }
     VectorTheSerene(VectorTheSerene &&other) { swap(other); }
@@ -80,7 +87,6 @@ using value_type = T;
         return *this;
     }
 
-
     VectorTheSerene(const T &value, size_t n) {
         size_ = n;
         if (n <= 8) {
@@ -88,9 +94,9 @@ using value_type = T;
         } else {
             capacity = n;
         }
-        data = new T[capacity];
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
         for (size_t i = 0; i < size_; ++i) {
-            data[i] = value;
+            new (&data[i]) T(value);
         }
     }
     template <typename Iterator> VectorTheSerene(Iterator begin, Iterator end) {
@@ -100,9 +106,9 @@ using value_type = T;
         } else {
             capacity = size_;
         }
-        data = new T[capacity];
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
         for (size_t i = 0; i < size_; ++i) {
-            data[i] = *(begin + i);
+            new (&data[i]) T(*(begin + i));
         }
     }
     VectorTheSerene(std::initializer_list<T> list) {
@@ -112,10 +118,10 @@ using value_type = T;
         } else {
             capacity = size_;
         }
-        data = new T[capacity];
+        data = static_cast<T *>(::operator new(sizeof(T) * capacity));
         size_t i = 0;
         for (const auto &item : list) {
-            data[i++] = item;
+            new (&data[i++]) T(item);
         }
     }
 
@@ -123,7 +129,11 @@ using value_type = T;
         swap(other);
         return *this;
     }
-    ~VectorTheSerene() { delete[] data; }
+    ~VectorTheSerene() {
+        for (size_t i = 0; i < size_; ++i)
+            data[i].~T();
+        ::operator delete(data);
+    }
 
     T &operator[](size_t index) { return data[index]; }
     const T &operator[](size_t index) const { return data[index]; }
@@ -139,19 +149,20 @@ using value_type = T;
     }
 
     void push_back(const T &value) {
-        size_++;
         allocate_more();
-        data[size_ - 1] = value;
+        new (&data[size_]) T(value);
+        size_++;
     }
     void push_back(T &&value) {
-        size_++;
         allocate_more();
-        data[size_ - 1] = std::move(value);
+        new (&data[size_]) T(std::move(value));
+        size_++;
     }
 
     void pop_back() {
         if (size_ > 0) {
             size_--;
+            data[size_].~T();
             allocate_less();
         }
     }
@@ -181,28 +192,43 @@ using value_type = T;
         return data[0];
     }
 
-    T* begin() { return data; }
-    T* end() { return data + size_; }
-    
-    const T* begin() const { return data; }
-    const T* end() const { return data + size_; }
-    
-    const T* cbegin() const { return data; }
-    const T* cend() const { return data + size_; }
-    
-    std::reverse_iterator<T*> rbegin() { return std::reverse_iterator<T*>(end()); }
-    std::reverse_iterator<T*> rend() { return std::reverse_iterator<T*>(begin()); }
-    
-    std::reverse_iterator<const T*> rbegin() const { return std::reverse_iterator<const T*>(end()); }
-    std::reverse_iterator<const T*> rend() const { return std::reverse_iterator<const T*>(begin()); }
-    
-    std::reverse_iterator<const T*> crbegin() const { return std::reverse_iterator<const T*>(cend()); }
-    std::reverse_iterator<const T*> crend() const { return std::reverse_iterator<const T*>(cbegin()); }
-    
+    T *begin() { return data; }
+    T *end() { return data + size_; }
+
+    const T *begin() const { return data; }
+    const T *end() const { return data + size_; }
+
+    const T *cbegin() const { return data; }
+    const T *cend() const { return data + size_; }
+
+    std::reverse_iterator<T *> rbegin() {
+        return std::reverse_iterator<T *>(end());
+    }
+    std::reverse_iterator<T *> rend() {
+        return std::reverse_iterator<T *>(begin());
+    }
+
+    std::reverse_iterator<const T *> rbegin() const {
+        return std::reverse_iterator<const T *>(end());
+    }
+    std::reverse_iterator<const T *> rend() const {
+        return std::reverse_iterator<const T *>(begin());
+    }
+
+    std::reverse_iterator<const T *> crbegin() const {
+        return std::reverse_iterator<const T *>(cend());
+    }
+    std::reverse_iterator<const T *> crend() const {
+        return std::reverse_iterator<const T *>(cbegin());
+    }
+
     size_t size() const { return size_; }
 
     bool is_empty() const { return size_ == 0; }
     void clear() {
+        for (size_t i = 0; i < size_; ++i) {
+            data[i].~T();
+        }
         size_ = 0;
         allocate_less();
     }
