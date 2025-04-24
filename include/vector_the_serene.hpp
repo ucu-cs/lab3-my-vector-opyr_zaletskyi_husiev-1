@@ -200,6 +200,12 @@ using value_type = T;
     std::reverse_iterator<const T*> crend() const { return std::reverse_iterator<const T*>(cbegin()); }
     
     size_t size() const { return size_; }
+
+    bool is_empty() const { return size_ == 0; }
+    void clear() {
+        size_ = 0;
+        allocate_less();
+    }
 };
 
 template <typename T> void print_vector(const VectorTheSerene<T> &v) {
