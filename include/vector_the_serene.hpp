@@ -73,6 +73,46 @@ template <typename T> class VectorTheSerene {
         swap(tmp);
         return *this;
     }
+    VectorTheSerene(const T &value, size_t n) {
+        size_ = n;
+        if (n <= 8) {
+            capacity = 16;
+        } else {
+            capacity = n;
+        }
+        data = new T[capacity];
+        for (size_t i = 0; i < size_; ++i) {
+            data[i] = value;
+        }
+    }
+    template <typename Iterator>
+    VectorTheSerene(Iterator begin, Iterator end) {
+        size_ = std::distance(begin, end);
+        if (size_ <= 8) {
+            capacity = 16;
+        } else {
+            capacity = size_;
+        }
+        data = new T[capacity];
+        for (size_t i = 0; i < size_; ++i) {
+            data[i] = *(begin + i);
+        }
+    }
+    VectorTheSerene (std::initializer_list<T> list) {
+        size_ = list.size();
+        if (size_ <= 8) {
+            capacity = 16;
+        } else {
+            capacity = size_;
+        }
+        data = new T[capacity];
+        size_t i = 0;
+        for (const auto &item : list) {
+            data[i++] = item;
+        }
+    }
+
+
     VectorTheSerene &operator=(VectorTheSerene &&other) {
         swap(other);
         return *this;
