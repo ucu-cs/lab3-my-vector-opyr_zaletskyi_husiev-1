@@ -48,6 +48,12 @@ template <typename T> class VectorTheSerene {
     }
 
   public:
+using value_type = T;
+    using iterator = T*;
+    using const_iterator = const T*;
+    using reverse_iterator = std::reverse_iterator<T*>;
+    using const_reverse_iterator = std::reverse_iterator<const T*>;
+    
     void swap(VectorTheSerene &other) {
         std::swap(size_, other.size_);
         std::swap(capacity, other.capacity);
@@ -73,6 +79,8 @@ template <typename T> class VectorTheSerene {
         swap(tmp);
         return *this;
     }
+
+
     VectorTheSerene(const T &value, size_t n) {
         size_ = n;
         if (n <= 8) {
@@ -85,8 +93,7 @@ template <typename T> class VectorTheSerene {
             data[i] = value;
         }
     }
-    template <typename Iterator>
-    VectorTheSerene(Iterator begin, Iterator end) {
+    template <typename Iterator> VectorTheSerene(Iterator begin, Iterator end) {
         size_ = std::distance(begin, end);
         if (size_ <= 8) {
             capacity = 16;
@@ -98,7 +105,7 @@ template <typename T> class VectorTheSerene {
             data[i] = *(begin + i);
         }
     }
-    VectorTheSerene (std::initializer_list<T> list) {
+    VectorTheSerene(std::initializer_list<T> list) {
         size_ = list.size();
         if (size_ <= 8) {
             capacity = 16;
@@ -111,7 +118,6 @@ template <typename T> class VectorTheSerene {
             data[i++] = item;
         }
     }
-
 
     VectorTheSerene &operator=(VectorTheSerene &&other) {
         swap(other);
@@ -150,6 +156,49 @@ template <typename T> class VectorTheSerene {
         }
     }
 
+    T &back() {
+        if (size_ == 0) {
+            throw std::out_of_range("vector is empty");
+        }
+        return data[size_ - 1];
+    }
+    const T &back() const {
+        if (size_ == 0) {
+            throw std::out_of_range("vector is empty");
+        }
+        return data[size_ - 1];
+    }
+    T &front() {
+        if (size_ == 0) {
+            throw std::out_of_range("vector is empty");
+        }
+        return data[0];
+    }
+    const T &front() const {
+        if (size_ == 0) {
+            throw std::out_of_range("vector is empty");
+        }
+        return data[0];
+    }
+
+    T* begin() { return data; }
+    T* end() { return data + size_; }
+    
+    const T* begin() const { return data; }
+    const T* end() const { return data + size_; }
+    
+    const T* cbegin() const { return data; }
+    const T* cend() const { return data + size_; }
+    
+    std::reverse_iterator<T*> rbegin() { return std::reverse_iterator<T*>(end()); }
+    std::reverse_iterator<T*> rend() { return std::reverse_iterator<T*>(begin()); }
+    
+    std::reverse_iterator<const T*> rbegin() const { return std::reverse_iterator<const T*>(end()); }
+    std::reverse_iterator<const T*> rend() const { return std::reverse_iterator<const T*>(begin()); }
+    
+    std::reverse_iterator<const T*> crbegin() const { return std::reverse_iterator<const T*>(cend()); }
+    std::reverse_iterator<const T*> crend() const { return std::reverse_iterator<const T*>(cbegin()); }
+    
     size_t size() const { return size_; }
 };
 
