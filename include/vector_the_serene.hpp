@@ -33,7 +33,8 @@ template <typename T> class VectorTheSerene {
             static_cast<T *>(::operator new(sizeof(T) * new_capacity));
         // Use the *true* size here
         for (size_t i = 0; i < size_; ++i) {
-            new (&new_data[i]) T(data[i]);
+            // MOVE - not copy:
+            new (&new_data[i]) T(std::move(data[i]));
             data[i].~T();
         }
         ::operator delete(data);
