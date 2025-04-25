@@ -13,34 +13,41 @@ template <typename T> class VectorTheSerene {
     size_t capacity_;
     T *data;
 
-    void auto_resize(size_t new_size) {
+    size_t capacity_for(size_t new_size) {
         size_t new_capacity = capacity_;
         while (new_size > new_capacity) {
             new_capacity *= 2;
         }
-        // And we never auto-shrink
-
-        unsafe_resize(new_capacity);
+        // Never auto-shrink
+        return new_capacity;
     }
 
-    void unsafe_resize(size_t new_capacity) {
-        assert(new_capacity >= size_);
-        if (new_capacity == capacity_) {
-            return;
+    T *data_for(size_t new_size) {
+        if (new_size <= 8) {
+            return static_cast<T *>(::operator new(sizeof(T) * 16));
+        } else {
+            return static_cast<T *>(::operator new(sizeof(T) * new_size));
         }
+    }
 
-        T *new_data =
-            static_cast<T *>(::operator new(sizeof(T) * new_capacity));
-        // Use the *true* size here
+    void move_into(T *new_data, size_t new_capacity) {
+        assert(new_capacity >= size_);
         for (size_t i = 0; i < size_; ++i) {
-            // MOVE - not copy:
             new (&new_data[i]) T(std::move(data[i]));
             data[i].~T();
         }
         ::operator delete(data);
-
         data = new_data;
         capacity_ = new_capacity;
+    }
+
+    void unsafe_resize(size_t new_capacity) {
+        if (new_capacity == capacity_) {
+            return;
+        }
+
+        T *new_data = data_for(new_capacity);
+        move_into(new_data, new_capacity);
     }
 
   public:
@@ -139,13 +146,25 @@ template <typename T> class VectorTheSerene {
     }
 
     void push_back(const T &value) {
-        auto_resize(size_ + 1);
-        new (&data[size_]) T(value);
+        auto new_capacity = capacity_for(size_ + 1);
+        auto target_data =
+            new_capacity == capacity_ ? data : data_for(new_capacity);
+        new (&target_data[size_])
+            T(value); // First construct the new item - for cases like
+                      // v.push_back(v.back())
+        if (new_capacity != capacity_) {
+            move_into(target_data, new_capacity);
+        }
         size_++;
     }
     void push_back(T &&value) {
-        auto_resize(size_ + 1);
-        new (&data[size_]) T(std::move(value));
+        auto new_capacity = capacity_for(size_ + 1);
+        auto target_data =
+            new_capacity == capacity_ ? data : data_for(new_capacity);
+        new (&target_data[size_]) T(std::move(value));
+        if (new_capacity != capacity_) {
+            move_into(target_data, new_capacity);
+        }
         size_++;
     }
 
@@ -157,10 +176,15 @@ template <typename T> class VectorTheSerene {
     }
 
     template <typename... Args> T &emplace_back(Args &&...args) {
-        auto_resize(size_ + 1);
-        new (&data[size_]) T(std::forward<Args>(args)...);
+        auto new_capacity = capacity_for(size_ + 1);
+        auto target_data =
+            new_capacity == capacity_ ? data : data_for(new_capacity);
+        new (&target_data[size_]) T(std::forward<Args>(args)...);
+        if (new_capacity != capacity_) {
+            move_into(target_data, new_capacity);
+        }
         size_++;
-        return data[size_ - 1];
+        return target_data[size_ - 1];
     }
 
     T &back() {
@@ -227,7 +251,7 @@ template <typename T> class VectorTheSerene {
             data[i].~T();
         }
         size_ = 0;
-        auto_resize(0);
+        unsafe_resize(capacity_for(0));
     }
 
     void reserve(size_t new_capacity) {
@@ -246,7 +270,7 @@ template <typename T> class VectorTheSerene {
         for (size_t i = new_size; i < size_; ++i) {
             data[i].~T();
         }
-        auto_resize(new_size);
+        unsafe_resize(capacity_for(new_size));
         // Add new items
         for (size_t i = size_; i < new_size; ++i) {
             new (&data[i]) T();
@@ -258,7 +282,7 @@ template <typename T> class VectorTheSerene {
         for (size_t i = new_size; i < size_; ++i) {
             data[i].~T();
         }
-        auto_resize(new_size);
+        unsafe_resize(capacity_for(new_size));
         // Add new items
         for (size_t i = size_; i < new_size; ++i) {
             new (&data[i]) T(value);
@@ -270,13 +294,24 @@ template <typename T> class VectorTheSerene {
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
-        auto_resize(size_ + 1);
+
+        // TODO inserting part of self
+        auto new_capacity = capacity_for(size_ + 1);
+        auto target_data =
+            new_capacity == capacity_ ? data : data_for(new_capacity);
         for (size_t i = size_ - 1; i > index; --i) {
-            new (&data[i]) T(std::move(data[i - 1]));
+            new (&target_data[i]) T(std::move(data[i - 1]));
             data[i - 1].~T();
         }
-        new (&data[index]) T(value);
-        size_++;
+        new (&target_data[index]) T(value);
+
+        auto future_size = size_ + 1;
+        if (new_capacity != capacity_) {
+            size_ = index; // Since the rest was moved manually
+            move_into(target_data, new_capacity);
+        }
+        size_ = future_size;
+
         return data + index;
     }
 
@@ -284,13 +319,23 @@ template <typename T> class VectorTheSerene {
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
-        auto_resize(size_ + 1);
+
+        auto new_capacity = capacity_for(size_ + 1);
+        auto target_data =
+            new_capacity == capacity_ ? data : data_for(new_capacity);
         for (size_t i = size_ - 1; i > index; --i) {
-            new (&data[i]) T(std::move(data[i - 1]));
+            new (&target_data[i]) T(std::move(data[i - 1]));
             data[i - 1].~T();
         }
-        new (&data[index]) T(std::move(value));
-        size_++;
+        new (&target_data[index]) T(std::move(value));
+
+        auto future_size = size_ + 1;
+        if (new_capacity != capacity_) {
+            size_ = index; // Since the rest was moved manually
+            move_into(target_data, new_capacity);
+        }
+        size_ = future_size;
+
         return data + index;
     }
 
@@ -300,15 +345,30 @@ template <typename T> class VectorTheSerene {
             throw std::out_of_range("index out of range");
         }
         size_t count = std::distance(begin, end);
-        auto_resize(size_ + count);
+
+        if (count == 0) {
+            return data + index;
+        }
+
+        auto new_capacity = capacity_for(size_ + count);
+        auto target_data =
+            new_capacity == capacity_ ? data : data_for(new_capacity);
+
         for (size_t i = size_ - 1; i > index; --i) {
-            new (&data[i]) T(std::move(data[i - count]));
+            new (&target_data[i]) T(std::move(data[i - count]));
             data[i - count].~T();
         }
         for (size_t i = 0; i < count; ++i) {
-            new (&data[index + i]) T(*(begin + i));
+            new (&target_data[index + i]) T(*(begin + i));
         }
-        size_ += count;
+
+        auto future_size = size_ + count;
+        if (new_capacity != capacity_) {
+            size_ = index; // Since the rest was moved manually
+            move_into(target_data, new_capacity);
+        }
+        size_ = future_size;
+
         return data + index;
     }
 
