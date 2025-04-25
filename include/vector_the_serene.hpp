@@ -32,18 +32,30 @@ template <typename T> class VectorTheSerene {
 
     void move_into(T *new_data, size_t new_size, size_t new_capacity) {
         assert(new_capacity >= size_);
-        for (size_t i = 0; i < size_; ++i) {
-            new (&new_data[i]) T(std::move(data[i]));
+        try {
+            for (size_t i = 0; i < size_; ++i) {
+                new (&new_data[i]) T(std::move(data[i]));
+            }
+            auto old_data = data;
+            auto old_size = size_;
+            data = new_data;
+            capacity_ = new_capacity;
+            size_ = new_size;
+            for (size_t i = 0; i < old_size; ++i) {
+                old_data[i].~T();
+            }
+            ::operator delete(old_data);
+        } catch (...) {
+            // Clean up any constructed objects in new_data if an exception
+            // occurs
+            for (size_t i = 0; i < size_; ++i) {
+                if (i < new_size && new_data != data) {
+                    new_data[i].~T();
+                }
+            }
+            ::operator delete(new_data);
+            throw; // Re-throw the caught exception
         }
-        auto old_data = data;
-        auto old_size = size_;
-        data = new_data;
-        capacity_ = new_capacity;
-        size_ = new_size;
-        for (size_t i = 0; i < old_size; ++i) {
-            old_data[i].~T();
-        }
-        ::operator delete(old_data);
     }
 
     void unsafe_reserve(size_t new_capacity) {
@@ -77,12 +89,23 @@ template <typename T> class VectorTheSerene {
         size_ = other.size_;
         capacity_ = other.capacity_;
         data = data_for(capacity_);
-        for (size_t i = 0; i < size_; ++i) {
-            // Can't just assign as this is the raw data
-            new (&data[i]) T(other.data[i]);
+        try {
+            for (size_t i = 0; i < size_; ++i) {
+                // Can't just assign as this is the raw data
+                new (&data[i]) T(other.data[i]);
+            }
+        } catch (...) {
+            // Clean up any constructed objects if an exception occurs
+            for (size_t i = 0; i < size_; ++i) {
+                if (&data[i] != nullptr) {
+                    data[i].~T();
+                }
+            }
+            ::operator delete(data);
+            throw; // Re-throw the caught exception
         }
     }
-    VectorTheSerene(VectorTheSerene &&other) { swap(other); }
+    VectorTheSerene(VectorTheSerene &&other) noexcept { swap(other); }
     VectorTheSerene &operator=(const VectorTheSerene &other) {
         VectorTheSerene tmp(other);
         swap(tmp);
@@ -93,29 +116,62 @@ template <typename T> class VectorTheSerene {
         capacity_ = capacity_for(n);
 
         data = data_for(capacity_);
-        for (size_t i = 0; i < size_; ++i) {
-            new (&data[i]) T(value);
+        try {
+            for (size_t i = 0; i < size_; ++i) {
+                new (&data[i]) T(value);
+            }
+        } catch (...) {
+            // Clean up any constructed objects if an exception occurs
+            for (size_t i = 0; i < size_; ++i) {
+                if (&data[i] != nullptr) {
+                    data[i].~T();
+                }
+            }
+            ::operator delete(data);
+            throw; // Re-throw the caught exception
         }
     }
     template <typename Iterator> VectorTheSerene(Iterator begin, Iterator end) {
         size_ = std::distance(begin, end);
         capacity_ = capacity_for(size_);
         data = data_for(capacity_);
-        for (size_t i = 0; i < size_; ++i) {
-            new (&data[i]) T(*(begin + i));
+        try {
+            for (size_t i = 0; i < size_; ++i) {
+                new (&data[i]) T(*(begin + i));
+            }
+        } catch (...) {
+            // Clean up any constructed objects if an exception occurs
+            for (size_t i = 0; i < size_; ++i) {
+                if (&data[i] != nullptr) {
+                    data[i].~T();
+                }
+            }
+            ::operator delete(data);
+            throw; // Re-throw the caught exception
         }
     }
     VectorTheSerene(std::initializer_list<T> list) {
         size_ = list.size();
         capacity_ = capacity_for(size_);
         data = data_for(capacity_);
-        size_t i = 0;
-        for (const auto &item : list) {
-            new (&data[i++]) T(item);
+        try {
+            size_t i = 0;
+            for (const auto &item : list) {
+                new (&data[i++]) T(item);
+            }
+        } catch (...) {
+            // Clean up any constructed objects if an exception occurs
+            for (size_t i = 0; i < size_; ++i) {
+                if (&data[i] != nullptr) {
+                    data[i].~T();
+                }
+            }
+            ::operator delete(data);
+            throw; // Re-throw the caught exception
         }
     }
 
-    VectorTheSerene &operator=(VectorTheSerene &&other) {
+    VectorTheSerene &operator=(VectorTheSerene &&other) noexcept {
         swap(other);
         return *this;
     }
@@ -142,24 +198,38 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + 1);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        new (&target_data[size_])
-            T(value); // First construct the new item - for cases like
-                      // v.push_back(v.back())
-        if (new_capacity != capacity_) {
-            move_into(target_data, size_ + 1, new_capacity);
-        } else {
-            size_++;
+        try {
+            new (&target_data[size_])
+                T(value); // First construct the new item - for cases like
+                          // v.push_back(v.back())
+            if (new_capacity != capacity_) {
+                move_into(target_data, size_ + 1, new_capacity);
+            } else {
+                size_++;
+            }
+        } catch (...) {
+            if (new_capacity != capacity_) {
+                ::operator delete(target_data);
+            }
+            throw; // Re-throw the caught exception
         }
     }
     void push_back(T &&value) {
         auto new_capacity = capacity_for(size_ + 1);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        new (&target_data[size_]) T(std::move(value));
-        if (new_capacity != capacity_) {
-            move_into(target_data, size_ + 1, new_capacity);
-        } else {
-            size_++;
+        try {
+            new (&target_data[size_]) T(std::move(value));
+            if (new_capacity != capacity_) {
+                move_into(target_data, size_ + 1, new_capacity);
+            } else {
+                size_++;
+            }
+        } catch (...) {
+            if (new_capacity != capacity_) {
+                ::operator delete(target_data);
+            }
+            throw; // Re-throw the caught exception
         }
     }
 
@@ -174,13 +244,20 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + 1);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        new (&target_data[size_]) T(std::forward<Args>(args)...);
-        if (new_capacity != capacity_) {
-            move_into(target_data, size_ + 1, new_capacity);
-        } else {
-            size_++;
+        try {
+            new (&target_data[size_]) T(std::forward<Args>(args)...);
+            if (new_capacity != capacity_) {
+                move_into(target_data, size_ + 1, new_capacity);
+            } else {
+                size_++;
+            }
+            return target_data[size_ - 1];
+        } catch (...) {
+            if (new_capacity != capacity_) {
+                ::operator delete(target_data);
+            }
+            throw; // Re-throw the caught exception
         }
-        return target_data[size_ - 1];
     }
 
     T &back() {
@@ -242,6 +319,7 @@ template <typename T> class VectorTheSerene {
     size_t capacity() const { return capacity_; }
 
     bool is_empty() const { return size_ == 0; }
+    bool empty() const { return size_ == 0; }
     void clear() {
         for (size_t i = 0; i < size_; ++i) {
             data[i].~T();
@@ -268,10 +346,25 @@ template <typename T> class VectorTheSerene {
         }
         unsafe_reserve(capacity_for(new_size));
         // Add new items
-        for (size_t i = size_; i < new_size; ++i) {
-            new (&data[i]) T();
+        try {
+            for (size_t i = size_; i < new_size; ++i) {
+                new (&data[i]) T();
+            }
+            size_ = new_size;
+        } catch (...) {
+            // If an exception occurs during construction, we need to clean up
+            // and maintain a consistent state
+            for (size_t i = size_; i < new_size; ++i) {
+                if (&data[i] != nullptr) {
+                    try {
+                        data[i].~T();
+                    } catch (...) {
+                        // Ignore exceptions in destructors
+                    }
+                }
+            }
+            throw; // Re-throw the exception
         }
-        size_ = new_size;
     }
     void resize(size_t new_size, const T &value) {
         // Remove all the items >=new_size
@@ -280,10 +373,24 @@ template <typename T> class VectorTheSerene {
         }
         unsafe_reserve(capacity_for(new_size));
         // Add new items
-        for (size_t i = size_; i < new_size; ++i) {
-            new (&data[i]) T(value);
+        try {
+            for (size_t i = size_; i < new_size; ++i) {
+                new (&data[i]) T(value);
+            }
+            size_ = new_size;
+        } catch (...) {
+            // If an exception occurs during construction, we need to clean up
+            for (size_t i = size_; i < new_size; ++i) {
+                if (&data[i] != nullptr) {
+                    try {
+                        data[i].~T();
+                    } catch (...) {
+                        // Ignore exceptions in destructors
+                    }
+                }
+            }
+            throw; // Re-throw the exception
         }
-        size_ = new_size;
     }
 
     iterator insert(const_iterator pos, const T &value) {
@@ -296,20 +403,37 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + 1);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        for (size_t i = size_ - 1; i > index; --i) {
-            new (&target_data[i]) T(std::move(data[i - 1]));
-            data[i - 1].~T();
-        }
-        new (&target_data[index]) T(value);
+        try {
+            for (size_t i = size_ - 1; i > index; --i) {
+                new (&target_data[i]) T(std::move(data[i - 1]));
+                data[i - 1].~T();
+            }
+            new (&target_data[index]) T(value);
 
-        if (new_capacity != capacity_) {
-            auto future_size = size_ + 1;
-            size_ = index; // Since the rest was moved manually
-            move_into(target_data, future_size, new_capacity);
-            // If move_into fails, the vector has the shortened size, and of
-            // course a memory leak happens, but it's still usable
-        } else {
-            size_++;
+            if (new_capacity != capacity_) {
+                auto future_size = size_ + 1;
+                size_ = index; // Since the rest was moved manually
+                move_into(target_data, future_size, new_capacity);
+                // If move_into fails, the vector has the shortened size, and of
+                // course a memory leak happens, but it's still usable
+            } else {
+                size_++;
+            }
+        } catch (...) {
+            // Clean up any allocated memory and constructed objects
+            if (new_capacity != capacity_) {
+                for (size_t i = 0; i < size_ && i != index; ++i) {
+                    if (&target_data[i] != nullptr) {
+                        try {
+                            target_data[i].~T();
+                        } catch (...) {
+                            // Ignore exceptions in destructors
+                        }
+                    }
+                }
+                ::operator delete(target_data);
+            }
+            throw; // Re-throw the caught exception
         }
 
         return data + index;
@@ -324,18 +448,35 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + 1);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        for (size_t i = size_; i > index; --i) {
-            new (&target_data[i]) T(std::move(data[i - 1]));
-            data[i - 1].~T();
-        }
-        new (&target_data[index]) T(std::move(value));
+        try {
+            for (size_t i = size_; i > index; --i) {
+                new (&target_data[i]) T(std::move(data[i - 1]));
+                data[i - 1].~T();
+            }
+            new (&target_data[index]) T(std::move(value));
 
-        if (new_capacity != capacity_) {
-            auto future_size = size_ + 1;
-            size_ = index; // Since the rest was moved manually
-            move_into(target_data, future_size, new_capacity);
-        } else {
-            size_++;
+            if (new_capacity != capacity_) {
+                auto future_size = size_ + 1;
+                size_ = index; // Since the rest was moved manually
+                move_into(target_data, future_size, new_capacity);
+            } else {
+                size_++;
+            }
+        } catch (...) {
+            // Clean up any allocated memory and constructed objects
+            if (new_capacity != capacity_) {
+                for (size_t i = 0; i < size_ && i != index; ++i) {
+                    if (&target_data[i] != nullptr) {
+                        try {
+                            target_data[i].~T();
+                        } catch (...) {
+                            // Ignore exceptions in destructors
+                        }
+                    }
+                }
+                ::operator delete(target_data);
+            }
+            throw; // Re-throw the caught exception
         }
 
         return data + index;
@@ -356,22 +497,39 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + count);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        if (size_ > 0) {
-            for (size_t i = size_ - 1; i >= index; --i) {
-                new (&target_data[i + count]) T(std::move(data[i]));
-                data[i].~T();
+        try {
+            if (size_ > 0) {
+                for (size_t i = size_ - 1; i >= index; --i) {
+                    new (&target_data[i + count]) T(std::move(data[i]));
+                    data[i].~T();
+                }
             }
-        }
-        for (size_t i = 0; i < count; ++i) {
-            new (&target_data[index + i]) T(*(begin + i));
-        }
+            for (size_t i = 0; i < count; ++i) {
+                new (&target_data[index + i]) T(*(begin + i));
+            }
 
-        if (new_capacity != capacity_) {
-            auto future_size = size_ + count;
-            size_ = index; // Since the rest was moved manually
-            move_into(target_data, future_size, new_capacity);
-        } else {
-            size_ += count;
+            if (new_capacity != capacity_) {
+                auto future_size = size_ + count;
+                size_ = index; // Since the rest was moved manually
+                move_into(target_data, future_size, new_capacity);
+            } else {
+                size_ += count;
+            }
+        } catch (...) {
+            // Clean up any allocated memory and constructed objects
+            if (new_capacity != capacity_) {
+                for (size_t i = 0; i < size_ && i != index; ++i) {
+                    if (&target_data[i] != nullptr) {
+                        try {
+                            target_data[i].~T();
+                        } catch (...) {
+                            // Ignore exceptions in destructors
+                        }
+                    }
+                }
+                ::operator delete(target_data);
+            }
+            throw; // Re-throw the caught exception
         }
 
         return data + index;

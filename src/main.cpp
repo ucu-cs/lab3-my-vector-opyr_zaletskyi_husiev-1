@@ -77,8 +77,7 @@ void test_vector_functionality() {
 
     v2.clear();
     std::cout << "After clear - size: " << v2.size()
-              << ", is_empty: " << (v2.is_empty() ? "true" : "false")
-              << std::endl;
+              << ", empty: " << (v2.empty() ? "true" : "false") << std::endl;
 
     v2.resize(5, 10);
     std::cout << "After resize(5, 10): ";
@@ -248,7 +247,7 @@ void test_array_functionality() {
 
     std::cout << "\n=== Using Array with STL Algorithms ===\n";
     ArrayTheSteadfast<int, 5> arr4 = {0, 0, 0, 0, 0};
-    std::iota(arr4.begin(), arr4.end(), 1); // Fill with 1, 2, 3, ...
+    std::iota(arr4.begin(), arr4.end(), 1);
     std::cout << "After iota: ";
     print_array(arr4);
 
@@ -256,6 +255,11 @@ void test_array_functionality() {
                    [](int x) { return x * 3; });
     std::cout << "After transform (x3): ";
     print_array(arr4);
+
+    std::cout << "Using for_each: ";
+    std::for_each(arr4.begin(), arr4.end(),
+                  [](int x) { std::cout << x << " "; });
+    std::cout << std::endl;
 
     std::reverse(arr4.begin(), arr4.end());
     std::cout << "After reverse: ";
@@ -269,17 +273,56 @@ void test_array_functionality() {
         }
         std::cout << std::endl;
     }
+
+    std::cout << "\n=== Testing with Complex Classes ===\n";
+    VectorTheSerene<ConstructReporter> v_cr;
+    std::cout << "Pushing elements to VectorTheSerene<ConstructReporter>:"
+              << std::endl;
+    v_cr.push_back(ConstructReporter("First"));
+    v_cr.push_back(ConstructReporter("Second"));
+    std::cout << "Elements in vector: " << v_cr.size() << std::endl;
+
+    ArrayTheSteadfast<ConstructReporter, 2> arr_cr;
+    std::cout << "Assigning to ArrayTheSteadfast<ConstructReporter, 2>:"
+              << std::endl;
+    arr_cr[0] = ConstructReporter("Array First");
+    arr_cr[1] = ConstructReporter("Array Second");
 }
 
 int main() {
-    std::cout << "===== Testing VectorTheSerene Implementation =====\n";
     test_vector_functionality();
-
-    std::cout << "\n===== Testing ArrayTheSteadfast Implementation =====\n";
     test_array_functionality();
 
-    std::cout
-        << "\n===== Testing ConstructReporter with VectorTheSerene =====\n";
+    std::cout << "\n=== Nested Containers Tests ===\n";
+    VectorTheSerene<ArrayTheSteadfast<int, 3>> v_of_a;
+    v_of_a.push_back(ArrayTheSteadfast<int, 3>{1, 2, 3});
+    v_of_a.push_back(ArrayTheSteadfast<int, 3>{4, 5, 6});
+
+    std::cout << "VectorTheSerene of ArrayTheSteadfast contents:\n";
+    for (size_t i = 0; i < v_of_a.size(); ++i) {
+        std::cout << "Array " << i << ": ";
+        for (size_t j = 0; j < v_of_a[i].size(); ++j) {
+            std::cout << v_of_a[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    ArrayTheSteadfast<VectorTheSerene<int>, 2> a_of_v;
+    a_of_v[0].push_back(10);
+    a_of_v[0].push_back(20);
+    a_of_v[1].push_back(30);
+    a_of_v[1].push_back(40);
+
+    std::cout << "ArrayTheSteadfast of VectorTheSerene contents:\n";
+    for (size_t i = 0; i < a_of_v.size(); ++i) {
+        std::cout << "Vector " << i << ": ";
+        for (size_t j = 0; j < a_of_v[i].size(); ++j) {
+            std::cout << a_of_v[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << "\n=== Testing ConstructReporter with VectorTheSerene ===\n";
     {
         std::cout << "Creating vector with ConstructReporter objects...\n";
         VectorTheSerene<ConstructReporter> v4;

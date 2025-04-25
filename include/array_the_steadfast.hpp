@@ -93,7 +93,7 @@ template <typename T, size_t N> class ArrayTheSteadfast {
     }
 
     constexpr size_t size() const { return N; }
-    constexpr bool empty() const { return N == 0; }
+    constexpr bool is_empty() const { return N == 0; }
 
     void swap(ArrayTheSteadfast &other) {
         for (size_t i = 0; i < N; ++i) {
