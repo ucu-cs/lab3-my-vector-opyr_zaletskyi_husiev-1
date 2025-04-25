@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iterator>
 #include <new>
+#include <stdexcept>
 #include <utility>
 
 template <typename T> class VectorTheSerene {
@@ -15,7 +16,7 @@ template <typename T> class VectorTheSerene {
     T *data;
 
     size_t capacity_for(size_t new_size) {
-        size_t new_capacity = capacity_;
+        size_t new_capacity = std::max(capacity_, 16ul);
         while (new_size > new_capacity) {
             new_capacity *= 2;
         }
@@ -292,7 +293,7 @@ template <typename T> class VectorTheSerene {
     }
 
     iterator insert(const_iterator pos, const T &value) {
-        auto index = pos - data;
+        size_t index = pos - data;
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
@@ -318,7 +319,7 @@ template <typename T> class VectorTheSerene {
     }
 
     iterator insert(const_iterator pos, T &&value) {
-        auto index = pos - data;
+        size_t index = pos - data;
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
@@ -326,7 +327,7 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + 1);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-        for (size_t i = size_ - 1; i > index; --i) {
+        for (size_t i = size_; i > index; --i) {
             new (&target_data[i]) T(std::move(data[i - 1]));
             data[i - 1].~T();
         }
@@ -344,7 +345,7 @@ template <typename T> class VectorTheSerene {
 
     template <typename Iterator>
     iterator insert(const_iterator pos, Iterator begin, Iterator end) {
-        auto index = pos - data;
+        size_t index = pos - data;
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
@@ -357,10 +358,11 @@ template <typename T> class VectorTheSerene {
         auto new_capacity = capacity_for(size_ + count);
         auto target_data =
             new_capacity == capacity_ ? data : data_for(new_capacity);
-
-        for (size_t i = size_ - 1; i > index; --i) {
-            new (&target_data[i]) T(std::move(data[i - count]));
-            data[i - count].~T();
+        if (size_ < 0) {
+            for (size_t i = size_ - 1; i >= index; --i) {
+                new (&target_data[i + count]) T(std::move(data[i]));
+                data[i].~T();
+            }
         }
         for (size_t i = 0; i < count; ++i) {
             new (&target_data[index + i]) T(*(begin + i));
@@ -377,7 +379,7 @@ template <typename T> class VectorTheSerene {
     }
 
     iterator erase(const_iterator pos) {
-        auto index = pos - data;
+        size_t index = pos - data;
         if (index >= size_) {
             throw std::out_of_range("index out of range");
         }

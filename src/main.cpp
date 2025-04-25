@@ -58,11 +58,18 @@ int main() {
     v3.push_back("World");
     print_vector(v3);
 
-    VectorTheSerene<ConstructReporter> v4;
-
-    for (int i = 0; i < 50; ++i) {
-        v4.push_back(ConstructReporter(std::to_string(i)));
+    {
+        VectorTheSerene<ConstructReporter> v4;
+        for (int i = 0; i < 50; ++i) {
+            v4.emplace_back(std::to_string(i));
+        }
     }
+
+    VectorTheSerene<std::string> v5;
+    for (int i = 0; i < 50; ++i) {
+        v5.insert(v5.begin(), std::to_string(i));
+    }
+    print_vector(v5);
 
     return 0;
 }
