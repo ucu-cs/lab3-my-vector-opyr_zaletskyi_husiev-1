@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <iostream>
+#include <iterator>
 #include <new>
 #include <utility>
 
@@ -290,7 +291,8 @@ template <typename T> class VectorTheSerene {
         size_ = new_size;
     }
 
-    auto insert(size_t index, const T &value) {
+    iterator insert(const_iterator pos, const T &value) {
+        auto index = pos - data;
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
@@ -315,7 +317,8 @@ template <typename T> class VectorTheSerene {
         return data + index;
     }
 
-    auto insert(size_t index, T &&value) {
+    iterator insert(const_iterator pos, T &&value) {
+        auto index = pos - data;
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
@@ -340,7 +343,8 @@ template <typename T> class VectorTheSerene {
     }
 
     template <typename Iterator>
-    auto insert(size_t index, Iterator begin, Iterator end) {
+    iterator insert(const_iterator pos, Iterator begin, Iterator end) {
+        auto index = pos - data;
         if (index > size_) {
             throw std::out_of_range("index out of range");
         }
@@ -372,7 +376,8 @@ template <typename T> class VectorTheSerene {
         return data + index;
     }
 
-    auto erase(size_t index) {
+    iterator erase(const_iterator pos) {
+        auto index = pos - data;
         if (index >= size_) {
             throw std::out_of_range("index out of range");
         }
@@ -385,19 +390,22 @@ template <typename T> class VectorTheSerene {
         return data + index;
     }
 
-    auto erase(size_t begin, size_t end) {
-        if (begin >= size_ || end > size_ || begin >= end) {
+    iterator erase(const_iterator begin, const_iterator end) {
+        auto first = begin - data;
+        auto last = end - data;
+
+        if (first >= size_ || last > size_ || first >= last) {
             throw std::out_of_range("index out of range");
         }
-        for (size_t i = begin; i < end; ++i) {
+        for (size_t i = first; i < last; ++i) {
             data[i].~T();
         }
-        for (size_t i = end; i < size_; ++i) {
-            new (&data[i - (end - begin)]) T(std::move(data[i]));
+        for (size_t i = last; i < size_; ++i) {
+            new (&data[i - (last - first)]) T(std::move(data[i]));
             data[i].~T();
         }
-        size_ -= (end - begin);
-        return data + begin;
+        size_ -= (last - first);
+        return data + first;
     }
 
     auto operator<=>(const VectorTheSerene &other) const {
