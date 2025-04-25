@@ -2,6 +2,7 @@
 #define INCLUDE_VECTOR_THE_SERENE_HPP_
 
 #include <cassert>
+#include <compare>
 #include <cstddef>
 #include <iostream>
 #include <iterator>

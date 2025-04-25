@@ -1,6 +1,7 @@
 #ifndef INCLUDE_ARRAY_THE_STEADFAST_HPP_
 #define INCLUDE_ARRAY_THE_STEADFAST_HPP_
 
+#include <compare>
 #include <cstddef>
 #include <iostream>
 #include <iterator>
