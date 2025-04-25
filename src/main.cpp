@@ -1,4 +1,8 @@
+#include "../include/array_the_steadfast.hpp"
 #include "./vector_the_serene.hpp"
+#include <algorithm>
+#include <iostream>
+#include <string>
 #include <vector>
 
 // To check for extra operations
@@ -35,6 +39,11 @@ class ConstructReporter {
         return *this;
     }
     ~ConstructReporter() { std::cout << "Destructed " << id << std::endl; }
+
+    friend std::ostream &operator<<(std::ostream &os,
+                                    const ConstructReporter &cr) {
+        return os << cr.id;
+    }
 };
 
 int main() {
@@ -70,6 +79,9 @@ int main() {
         v5.insert(v5.begin(), std::to_string(i));
     }
     print_vector(v5);
+
+    ArrayTheSteadfast<int, 5> arr = {1, 2, 3, 4, 5};
+    print_array(arr);
 
     return 0;
 }
